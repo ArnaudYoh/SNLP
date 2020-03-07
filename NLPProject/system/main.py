@@ -3,14 +3,12 @@ from cyk import CYK
 
 # Read arguments
 p = argparse.ArgumentParser()
-p.add_argument('--inFile', type=str, required=True, help='Input file (text to parse)')
-p.add_argument('--outFile', type=str, required=False, default=None,
-               help='Output file (will store parsings in bracketed format)')
-p.add_argument('--vizOOV', type=bool, required=False, default=False, help='Plot management of OOV words')
+p.add_argument('--test_file', type=str, required=False, help='Input file (text to parse)')
+p.add_argument('--test_sentence', type=str, required=False, help='Input sentence (text to parse)')
 args = p.parse_args()
 
 corpus = []
-with open("data/SEQUOIA_treebank", "r") as file_corpus:
+with open("data/sequoia-corpus+fct.mrg_strict", "r") as file_corpus:
     for line in file_corpus:
         corpus.append(line)
 
@@ -24,25 +22,30 @@ print("Building PCFG and Parser")
 my_CYK_parser = CYK(corpus_train)
 print("Done")
 
-print("Start Parsing Text\n")
+print("Start Parsing")
 
-for sent in open(args.inFile):
-
+if args.test_sentence:
+    sent = args.test_sentence
     print("#################")
-    print("Sentence : ")
-    print(sent)
-    print()
+    print("Sentence: ")
+    print(sent + "\n")
 
     print("Parsing")
-    my_parsing = my_CYK_parser.parse(sent, viz_oov=args.vizOOV)
+    my_parsing = my_CYK_parser.parse(sent)
     if my_parsing is None:
-        print("Found no parsing grammatically valid.")
+        print("Found no viable parsing.")
     else:
         print(my_parsing)
 
-    if not (args.outFile is None):
-        with open(args.outFile, 'a') as f:
-            if my_parsing is None:
-                f.write("Found no parsing grammatically valid." + "\n")
-            else:
-                f.write(my_parsing + "\n")
+for sent in open(args.test_file):
+
+    print("#################")
+    print("Sentence: ")
+    print(sent + "\n")
+
+    print("Parsing")
+    my_parsing = my_CYK_parser.parse(sent)
+    if my_parsing is None:
+        print("Found no viable parsing.")
+    else:
+        print(my_parsing)

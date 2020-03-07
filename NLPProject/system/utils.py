@@ -3,7 +3,7 @@ from copy import deepcopy
 import numpy as np
 from operator import itemgetter
 import re
-
+from PYEVALB import scorer
 import networkx as nx
 
 
@@ -178,3 +178,9 @@ def l2_nearest(embeddings, query_embedding, k):
     distances = (((embeddings - query_embedding) ** 2).sum(axis=1) ** 0.5)
     sorted_distances = sorted(enumerate(distances), key=itemgetter(1))
     return zip(*sorted_distances[:k])
+
+
+def save_scores(in_file, truth_file, out_file="out.txt"):
+    scorer.Scorer().evalb(in_file,
+                          truth_file,
+                          out_file)

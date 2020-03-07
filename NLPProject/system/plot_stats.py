@@ -2,8 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-# FILE TO PROCESS THE RESULTS FILE GIVEN BY PYEVALB INTO FIGURES
-
 
 #####################################################
 # Plot accuracy against sentence length

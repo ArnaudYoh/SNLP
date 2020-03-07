@@ -9,57 +9,40 @@ class PCFG:
 
     def __init__(self, corpus):
 
-        self.grammar = dict()
-        self.lexicon = dict()
-        self.freq_tokens = dict()
-        self.freq_terminal_tags = dict()
+        self.grammar = {}
+        self.lexicon = {}
 
-        self.list_artificial_tags = list()
-        self.set_artificial_tags = set()
-        self.list_tags = list()
-        self.list_all_tags = list()
-
-        self.nb_tags = 0
-        self.nb_all_tags = 0
-
-        self.build(corpus)
-
-    def build(self, corpus):
         self.get_pcfg(corpus)
 
-        # frequencies of each word/token
+        self.freq_tokens = {}
         for tag in self.lexicon.keys():
             for word in self.lexicon[tag].keys():
                 if word in self.freq_tokens.keys():
                     self.freq_tokens[word] += self.lexicon[tag][word]
                 else:
                     self.freq_tokens[word] = self.lexicon[tag][word]
-        tot_count = np.sum(list(self.freq_tokens.values()))
+        sum = np.sum(list(self.freq_tokens.values()))
         for word in self.freq_tokens:
-            self.freq_tokens[word] /= tot_count
+            self.freq_tokens[word] /= sum
 
+        self.set_artificial_tags = set()
         self.chomskyfy()
 
         self.freq_terminal_tags = {tag: np.sum(list(counts.values())) for (tag, counts) in self.lexicon.items()}
-        tot_count = np.sum(list(self.freq_terminal_tags.values()))
+        sum = np.sum(list(self.freq_terminal_tags.values()))
         for tag in self.freq_terminal_tags:
-            self.freq_terminal_tags[tag] /= tot_count
+            self.freq_terminal_tags[tag] /= sum
 
-        self.counts_to_prob()
-
-        list_all_tags = get_tag_list(self.grammar)
-        self.list_artificial_tags = list(self.set_artificial_tags)
-        self.list_tags = list(set(list_all_tags).difference(self.set_artificial_tags))
-
-        self.list_all_tags = self.list_tags + self.list_artificial_tags
-        self.nb_tags = len(self.list_tags)
-        self.nb_all_tags = len(self.list_all_tags)
-
-    def counts_to_prob(self):
-        """Go from counts to probabilities"""
         self.grammar = get_prob(self.grammar)
         self.lexicon = get_prob(self.lexicon)
 
+        list_all_tags = get_tag_list(self.grammar)
+        self.list_artificial_symbols = list(self.set_artificial_tags)
+        self.list_tags = list(set(list_all_tags).difference(self.set_artificial_tags))
+
+        self.list_all_tags = self.list_tags + self.list_artificial_symbols
+        self.nb_tags = len(self.list_tags)
+        self.nb_all_tags = len(self.list_all_tags)
 
     def chomskyfy(self):
         """Apply the chomsky normalization"""
@@ -68,7 +51,7 @@ class PCFG:
         self.unary_rule()
 
     def unary_rule(self):
-
+        """Telescope unary rules"""
         copy_grammar = deepcopy(self.grammar)
         copy_lexicon = deepcopy(self.lexicon)
 
@@ -111,6 +94,7 @@ class PCFG:
             del self.grammar[left][right]
 
     def binary_rule(self):
+        """Replace all Rules with more than 2 children with a chain of rules"""
         copy_grammar = deepcopy(self.grammar)
 
         for root_tag, rules in copy_grammar.items():
@@ -139,40 +123,37 @@ class PCFG:
 
             sent = tagged_sent.split()
             levels = [[]]
-            level = 0
+            level = 0  # difference between the number of opened and closed parenthesis
             current_tag = None
 
-            for part in sent:
+            for bloc in sent:
+                # Add a Tag
+                if bloc[0] == "(":
 
-                # Add Tag
-                if part[0] == "(":
-                    tag = clean_tag(part[1:])  # we add it to the hierarchy
-                    if level < len(levels):  # there is already one tag as its level
+                    tag = clean_tag(bloc[1:])
+                    if level < len(levels):
                         levels[level].append(tag)
-                    else:  # first tag as its level
+                    else:
                         levels.append([tag])
 
-                    level += 1  # since we opened a new bracket
-                    current_tag = tag  # saved in order to add the word to the lexicon
-
-                # Add word
+                    level += 1
+                    current_tag = tag
+                # Add a word
                 else:
                     word = ""
-                    nb_closing_brackets = 0
-                    for caract in part:
+                    nb_closing_parenthesis = 0
+                    for caract in bloc:
                         if caract == ")":
-                            nb_closing_brackets += 1
+                            nb_closing_parenthesis += 1
                         else:
                             word += caract
                     increment_dict(self.lexicon, current_tag, word)
-                    level -= nb_closing_brackets
+                    level -= nb_closing_parenthesis
 
-                    for _ in reversed(range(nb_closing_brackets)):
+                    for _ in reversed(range(1, nb_closing_parenthesis)):
                         root = levels[-2][-1]
                         if root == '':
                             break
-                        tags = levels[-1]  # children tags
+                        tags = levels[-1]
                         increment_dict(self.grammar, root, tags)
                         levels.pop()
-
-
