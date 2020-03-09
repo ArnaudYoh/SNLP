@@ -1,5 +1,5 @@
 import argparse
-from cyk import CYK
+from parser import Parser
 
 # Read arguments
 p = argparse.ArgumentParser()
@@ -19,7 +19,7 @@ corpus_train = corpus[:nb_train]
 
 # Building Parser
 print("Building PCFG and Parser")
-my_CYK_parser = CYK(corpus_train)
+my_parser = Parser(corpus_train)
 print("Done")
 
 print("Start Parsing")
@@ -31,7 +31,7 @@ if args.test_sentence:
     print(sent + "\n")
 
     print("Parsing")
-    my_parsing = my_CYK_parser.parse(sent)
+    my_parsing = my_parser.parse(sent)
     if my_parsing is None:
         print("Found no viable parsing.")
     else:
@@ -44,7 +44,7 @@ for sent in open(args.test_file):
     print(sent + "\n")
 
     print("Parsing")
-    my_parsing = my_CYK_parser.parse(sent)
+    my_parsing = my_parser.parse(sent)
     if my_parsing is None:
         print("Found no viable parsing.")
     else:

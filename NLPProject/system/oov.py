@@ -15,7 +15,7 @@ class OOV:
         self.list_all_symbols = list_all_symbols
         self.nb_all_symbols = len(list_all_symbols)
 
-        self.freq_tokens = freq_tokens
+        self.word_frequency = freq_tokens
 
         self.words_with_embeddings_id = {w: i for (i, w) in
                                          enumerate(self.words_with_embeddings)}  # Map words to indices
@@ -23,42 +23,42 @@ class OOV:
         self.build_embeddings_lexicon()  # precompute embeddings of words in lexicon
         self.embeddings_lexicon /= np.linalg.norm(self.embeddings_lexicon, axis=1)[:, None]  # normalize embeddings
 
-    def closest_in_corpus(self, oov_word, viz_closest=False):
+    def closest_in_corpus(self, oov_word, verbose=False):
         """Returns closest word using Levenshtein dist and cosine similarity of an embedding"""
 
         normalized = normalize(oov_word, self.word_lexicon_id)
-        if not (normalized is None):
+        if normalized is not None:
             return normalized
 
         # OOV word exists in the embeddings
         if oov_word in self.words_with_embeddings:
             closest_corpus_word = self.closest_word_in_embedding(oov_word)
-            if viz_closest:
+            if verbose:
                 print(closest_corpus_word,
                       " is the closest word (meaning) found among lexicon words having an embedding")
             return closest_corpus_word
 
-        # Look for close words with Levenshtein and then look into the embeddings
+        # Look for closest and most frequent word with Levenshtein and then look into the embeddings
         else:
-            correction = self.corrected_word(oov_word)
+            correction = self.spell_corrected_word(oov_word)
 
             if correction is None:
-                if viz_closest:
-                    print("no word found at levenshtein distance less or equal to 3")
+                if verbose:
+                    print("no word found at levenshtein distance less or equal to 2")
                 return None
 
             else:
-                if viz_closest:
+                if verbose:
                     print(correction, "closest word based on levenshtein dist")
 
                 if correction in self.words_lexicon:  # if corrected word in corpus
-                    if viz_closest:
+                    if verbose:
                         print(correction, "is a word in the lexicon")
                     return correction
 
                 else:
                     closest_corpus_word = self.closest_word_in_embedding(correction)
-                    if viz_closest:
+                    if verbose:
                         print(closest_corpus_word, "closest word based on embeddings")
                     return closest_corpus_word
 
@@ -100,34 +100,37 @@ class OOV:
     def damerau_levenshtein_dist(self, w1, w2):
         """Computes the Damerau-Levenshtein distance"""
 
+        n1 = len(w1)
         n2 = len(w2)
-        dist = np.zeros((3, n2 + 1)) # Save space by not using len(w1) + 1 rows
+        dist = np.zeros((3, n2 + 1))  # Save space by not using n1 + 1 rows
 
         dist[0, :] = np.arange(n2 + 1)  # distance from void string to w2[:j]
         dist[1, 0] = 1
-        for j in range(1, n2 + 1):
-            diff_last_letters = w1[0] != w2[j - 1]  # different last letters of prefixes
-            dist[1, j] = min([dist[0][j] + 1, dist[1][j - 1] + 1, dist[0][j - 1] + diff_last_letters])
 
-        for i in range(2, len(w1) + 1):
-            dist[2][0] = i  # distance from w1[:i] to void string
+
+        for i in range(1, n2 + 1):
+            diff_last_letters = 1 if w1[0] != w2[i - 1] else 0  # different last letters of prefixes
+            dist[1, i] = min([dist[0][i] + 1, dist[1][i - 1] + 1, dist[0][i - 1] + diff_last_letters])
+
+        for i in range(2, n1 + 1):
+            dist[2, 0] = i  # distance from w1[:i] to void string
 
             for j in range(1, n2 + 1):
-                diff_last_letters = w1[i - 1] != w2[j - 1]
+                diff_last_letters = 1 if w1[i - 1] != w2[j - 1] else 0
                 dist[2, j] = min([dist[1][j] + 1, dist[2][j - 1] + 1, dist[1][j - 1] + diff_last_letters])
                 if j > 1 and w1[i - 1] == w2[j - 2] and w1[i - 2] == w2[j - 1]:
                     dist[2, j] = min(dist[2, j], dist[0, j - 2] + 1)
 
-            dist[0, :] = dist[1, :]
+            dist[0, :] = dist[1, :]  # Saving space
             dist[1, :] = dist[2, :]
 
         return dist[2][n2]
 
-    def corrected_word(self, query):
-        """Returns closest word w.r.t. levenshtein-damerau dist with the highest frequency"""
+    def spell_corrected_word(self, query):
+        """Returns closest word w.r.t. damerau-levenshtein dist with the highest frequency"""
 
         candidates = {1: [], 2: []}
-        min_dist = 2
+        min_dist = max(candidates.keys())
 
         # Computes all distances
         for word in self.words_lexicon:
@@ -136,23 +139,16 @@ class OOV:
                 candidates[dist].append(word)
                 min_dist = dist
 
-        # Lowest distance is 1
-        if len(candidates[1]) > 0:
-            idx_most_frequent = np.argmax([self.freq_tokens[word] for word in candidates[1]])
-            return candidates[1][idx_most_frequent]
-
         list_candidates = candidates[min_dist]
-        candidates_in_lexicon = []
+        final_candidates = []
 
         for word in list_candidates:
             if word in self.words_lexicon:
-                candidates_in_lexicon.append(word)
-        if len(candidates_in_lexicon) == 0:
-            # the min distance is accomplished only by words which have an embedding
-            # if any, we return one of these
+                final_candidates.append(word)
+        if len(final_candidates) == 0:
             if len(list_candidates) == 0:
                 return None
             return list_candidates[0]
 
-        idx_most_frequent = np.argmax([self.freq_tokens[word] for word in candidates_in_lexicon])
-        return candidates_in_lexicon[idx_most_frequent]
+        idx_most_frequent = np.argmax([self.word_frequency[word] for word in final_candidates])
+        return final_candidates[idx_most_frequent]

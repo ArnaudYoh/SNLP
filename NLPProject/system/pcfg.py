@@ -9,18 +9,24 @@ class PCFG:
 
     def __init__(self, corpus):
 
-        self.grammar = {}
-        self.lexicon = {}
+        self.grammar = dict()
+        self.lexicon = dict()
+        self.pre_terminal_tags = set()
 
         self.get_pcfg(corpus)
 
+        self.lexicon_inverted = {tag: {} for tag in self.pre_terminal_tags}
+        for word in self.lexicon:
+            for tag in self.lexicon[word]:
+                self.lexicon_inverted[tag][word] = self.lexicon[word][tag]
+
         self.freq_tokens = {}
-        for tag in self.lexicon.keys():
-            for word in self.lexicon[tag].keys():
+        for word in self.lexicon.keys():
+            for tag in self.lexicon[word].keys():
                 if word in self.freq_tokens.keys():
-                    self.freq_tokens[word] += self.lexicon[tag][word]
+                    self.freq_tokens[word] += self.lexicon[word][tag]
                 else:
-                    self.freq_tokens[word] = self.lexicon[tag][word]
+                    self.freq_tokens[word] = self.lexicon[word][tag]
         sum = np.sum(list(self.freq_tokens.values()))
         for word in self.freq_tokens:
             self.freq_tokens[word] /= sum
@@ -53,7 +59,7 @@ class PCFG:
     def unary_rule(self):
         """Telescope unary rules"""
         copy_grammar = deepcopy(self.grammar)
-        copy_lexicon = deepcopy(self.lexicon)
+        copy_lexicon = deepcopy(self.lexicon_inverted)
 
         rules_to_remove = []
 
@@ -66,29 +72,25 @@ class PCFG:
                     freq = counts / (np.sum(list(self.grammar[A].values())))
 
                     # rule A -> B where B is a pre-terminal tag
-                    if B in copy_lexicon:
-                        if A != "SENT":
-                            tag = A + "&" + B
-                            self.set_artificial_tags.add(tag)
+                    if B in self.pre_terminal_tags and A != "SENT":
+                        tag = A + "&" + B
+                        self.set_artificial_tags.add(tag)
 
-                            for word, counts2 in copy_lexicon[B].items():  # rule B -> word
-                                # add A&B -> word, self.lexicon[word][A&B] = freq(A->B) * counts(B)
-                                increment_dict(self.lexicon, tag, word,
-                                               counts=counts2 * freq)
+                        for word, counts2 in copy_lexicon[B].items():  # rule B -> word
+                            # add A&B -> word, self.lexicon[word][A&B] = freq(A->B) * counts(B)
+                            increment_dict(self.lexicon, word, tag, counts=counts2 * freq)
 
-                            # for each rul X -> Y A, add rule X -> Y A&B
-                            for root_tag2, rules2 in copy_grammar.items():
-                                for list_tags2, counts2 in rules2.items():
-                                    if len(list_tags2) == 2 and list_tags2[1] == A:
-                                        increment_dict(self.grammar, root_tag2, (list_tags2[0], tag),
-                                                       counts=counts2)
+                        # for each rul X -> Y A, add rule X -> Y A&B
+                        for root_tag2, rules2 in copy_grammar.items():
+                            for list_tags2, counts2 in rules2.items():
+                                if len(list_tags2) == 2 and list_tags2[1] == A:
+                                    increment_dict(self.grammar, root_tag2, (list_tags2[0], tag), counts=counts2)
 
                     # If B not pre-terminal, for each rule B -> X Y, add A -> X Y
-                    else:
+                    elif B not in self.pre_terminal_tags :
                         for list_tags_child, counts2 in copy_grammar[B].items():
                             if len(list_tags_child) == 2:
-                                increment_dict(self.grammar, A, list_tags_child,
-                                               counts=counts2 * freq)
+                                increment_dict(self.grammar, A, list_tags_child, counts=counts2 * freq)
 
         for (left, right) in rules_to_remove:
             del self.grammar[left][right]
@@ -97,19 +99,19 @@ class PCFG:
         """Replace all Rules with more than 2 children with a chain of rules"""
         copy_grammar = deepcopy(self.grammar)
 
-        for root_tag, rules in copy_grammar.items():
+        for A, rules in copy_grammar.items():
             for list_tags, counts in rules.items():
                 nb_consecutive_tags = len(list_tags)
 
                 if nb_consecutive_tags > 2:
-                    del self.grammar[root_tag][list_tags]
+                    del self.grammar[A][list_tags]
 
-                    tag = root_tag + "|" + '-'.join(list_tags[1:])
+                    tag = A + "|" + '-'.join(list_tags[1:])
                     self.set_artificial_tags.add(tag)
-                    increment_dict(self.grammar, root_tag, (list_tags[0], tag), counts=counts)
+                    increment_dict(self.grammar, A, (list_tags[0], tag), counts=counts)
 
                     for k in range(1, nb_consecutive_tags - 2):
-                        new_tag = root_tag + "|" + '-'.join(list_tags[k + 1:])
+                        new_tag = A + "|" + '-'.join(list_tags[k + 1:])
                         self.set_artificial_tags.add(new_tag)
                         increment_dict(self.grammar, tag, (list_tags[k], new_tag), counts=counts)
                         tag = new_tag
@@ -147,7 +149,8 @@ class PCFG:
                             nb_closing_parenthesis += 1
                         else:
                             word += caract
-                    increment_dict(self.lexicon, current_tag, word)
+                    self.pre_terminal_tags.add(current_tag)
+                    increment_dict(self.lexicon, word, current_tag)
                     level -= nb_closing_parenthesis
 
                     for _ in reversed(range(1, nb_closing_parenthesis)):

@@ -5,7 +5,7 @@ from utils import tagged_sent_to_tree, tree_to_sentence, tagged_to_sentence, sav
 from PYEVALB import scorer
 from PYEVALB import parser
 
-from cyk import CYK
+from parser import Parser
 
 # Get Train/Dev/Test
 corpus = []
@@ -48,7 +48,7 @@ with open('results/sentences_test.txt', 'w') as f:
 
 print("Build CYK parser")
 tic = time.time()
-my_CYK_parser = CYK(dataset["train"])
+my_parser = Parser(dataset["train"])
 tac = time.time()
 print("Done in " + str(round(tac - tic, 2)) + "sec\n")
 
@@ -72,7 +72,7 @@ for idx_sentence in range(nb_test):
 
     print("Our CYK Parsing")
     tic = time.time()
-    my_parsing = my_CYK_parser.parse(sent, viz_oov=False)
+    my_parsing = my_parser.parse(sent, viz_oov=False)
     if my_parsing is None:
         print("Found no viable parsing.")
     else:
