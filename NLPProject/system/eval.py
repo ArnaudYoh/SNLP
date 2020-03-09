@@ -1,32 +1,36 @@
 import time
 
 from utils import tagged_sent_to_tree, tree_to_sentence, tagged_to_sentence, save_scores
-
 from PYEVALB import scorer
 from PYEVALB import parser
-
 from parser import Parser
 
-# Get Train/Dev/Test
+# Get dataset
+frac_train = 0.8
+frac_dev = 0.1
+frac_test = 0.1
+
 corpus = []
 with open("data/sequoia-corpus+fct.mrg_strict", "r") as file_corpus:
     for line in file_corpus:
         corpus.append(line)
 
-# Splitting corpus into train/dev/test set
-frac_train = 0.8
-frac_dev = 0.1
-frac_test = 0.1
-
 N = len(corpus)
-nb_train = int(round(N * frac_train))
-nb_dev = int(round(N * frac_dev))
-nb_test = N - nb_train - nb_dev
+train_size = int(N * frac_train)
+vali_size = int(N * frac_dev)
+test_set = N - train_size - vali_size
 
 dataset = dict()
-dataset["train"] = corpus[:nb_train]
-dataset["dev"] = corpus[nb_train:nb_train + nb_dev]
-dataset["test"] = corpus[nb_train + nb_dev:]
+dataset["train"] = corpus[:train_size]
+dataset["dev"] = corpus[train_size:train_size + vali_size]
+dataset["test"] = corpus[train_size + vali_size:]
+
+# Build the Parser
+print("Build CYK parser")
+start = time.time()
+my_parser = Parser(dataset["train"])
+end = time.time()
+print("Done in " + str(round(end - start, 2)) + "sec\n")
 
 # Save test in separate file
 sentences_test = []
@@ -44,22 +48,11 @@ with open('results/sentences_test.txt', 'w') as f:
     for item in sentences_test:
         f.write("%s\n" % item)
 
-# Build CYK
-
-print("Build CYK parser")
-tic = time.time()
-my_parser = Parser(dataset["train"])
-tac = time.time()
-print("Done in " + str(round(tac - tic, 2)) + "sec\n")
-
-
 # Use pyevalb
-assert (len(sentences_test) == nb_test)
-assert (len(real_parsings_test) == nb_test)
+if not len(sentences_test) == test_set or not len(real_parsings_test) == test_set:
+    print("Issue with test set or train label creation")
 
-for idx_sentence in range(nb_test):
-
-    print("##############################")
+for idx_sentence in range(test_set):
 
     real_parsing = real_parsings_test[idx_sentence]
     sent = sentences_test[idx_sentence]
@@ -71,14 +64,14 @@ for idx_sentence in range(nb_test):
     print(real_parsing + "\n")
 
     print("Our CYK Parsing")
-    tic = time.time()
+    start = time.time()
     my_parsing = my_parser.parse(sent, viz_oov=False)
     if my_parsing is None:
         print("Found no viable parsing.")
     else:
         print(my_parsing)
-    tac = time.time()
-    print("Done in " + str(round(tac - tic, 2)) + "sec\n")
+    end = time.time()
+    print("Done in " + str(round(end - start, 2)) + "sec\n\n\n")
 
     with open('results/evaluation_data.parser_output', 'a') as f:
         if my_parsing is None:
@@ -91,11 +84,10 @@ for idx_sentence in range(nb_test):
         real_parsing = real_parsing[2:-1]
         my_parsing = my_parsing[2:-1]
 
-        print("Score PYEVALB:")
         real_tree = parser.create_from_bracket_string(real_parsing)
         test_tree = parser.create_from_bracket_string(my_parsing)
-        result = scorer.Scorer().score_trees(real_tree, test_tree)
-        print('accuracy ' + str(result.tag_accracy))
+        score = scorer.Scorer().score_trees(real_tree, test_tree)
+        print('PYEVALB accuracy ' + str(score.tag_accracy))
 
         # for evaluation on the whole corpus, we save real_parsing 
         # and_my_parsing in new files without first and last brackets
@@ -106,5 +98,5 @@ for idx_sentence in range(nb_test):
             f.write(my_parsing + "\n")
 
 save_scores('results/real_parsings_test_for_eval.txt',
-                              'results/my_parsings_test_for_eval.txt',
-                              'results/results_pyevalb.txt',)
+            'results/my_parsings_test_for_eval.txt',
+            'results/results_pyevalb.txt', )

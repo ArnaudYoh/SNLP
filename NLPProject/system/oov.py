@@ -100,31 +100,31 @@ class OOV:
     def damerau_levenshtein_dist(self, w1, w2):
         """Computes the Damerau-Levenshtein distance"""
 
+        if w1 == w2:
+            return 0
+
         n1 = len(w1)
         n2 = len(w2)
-        dist = np.zeros((3, n2 + 1))  # Save space by not using n1 + 1 rows
 
-        dist[0, :] = np.arange(n2 + 1)  # distance from void string to w2[:j]
-        dist[1, 0] = 1
+        if n1 == 0:
+            return n2
+        if n2 == 0:
+            return n1
 
+        dist_vector1 = np.arange(n2 + 1)  # Save space by not using an n1 * n2 matrix
+        dist_vector2 = np.zeros((n2 + 1))
 
-        for i in range(1, n2 + 1):
-            diff_last_letters = 1 if w1[0] != w2[i - 1] else 0  # different last letters of prefixes
-            dist[1, i] = min([dist[0][i] + 1, dist[1][i - 1] + 1, dist[0][i - 1] + diff_last_letters])
+        for i in range(n1):
+            dist_vector2[0] = i + 1  # Distance to void
 
-        for i in range(2, n1 + 1):
-            dist[2, 0] = i  # distance from w1[:i] to void string
+            for j in range(n2):
+                cost = 0 if w1[i] == w2[j] else 1
+                dist_vector2[j + 1] = min(dist_vector2[j] + 1, dist_vector1[j + 1] + 1, dist_vector1[j] + cost)
 
-            for j in range(1, n2 + 1):
-                diff_last_letters = 1 if w1[i - 1] != w2[j - 1] else 0
-                dist[2, j] = min([dist[1][j] + 1, dist[2][j - 1] + 1, dist[1][j - 1] + diff_last_letters])
-                if j > 1 and w1[i - 1] == w2[j - 2] and w1[i - 2] == w2[j - 1]:
-                    dist[2, j] = min(dist[2, j], dist[0, j - 2] + 1)
+            for j in range(n2 + 1):  # Replace values to save space
+                dist_vector1[j] = dist_vector2[j]
 
-            dist[0, :] = dist[1, :]  # Saving space
-            dist[1, :] = dist[2, :]
-
-        return dist[2][n2]
+        return int(dist_vector2[n2])
 
     def spell_corrected_word(self, query):
         """Returns closest word w.r.t. damerau-levenshtein dist with the highest frequency"""
