@@ -35,7 +35,7 @@ class Parser:
             if token_to_tag is None:
                 tag = max(self.PCFG.freq_terminal_tags, key=self.PCFG.freq_terminal_tags.get)
             else:
-                tag = max(self.PCFG.lexicon[token_to_tag], key=self.PCFG.lexicon[token_to_tag].get)
+                tag = max(self.CYK.lexicon_inverted[token_to_tag], key=self.CYK.lexicon_inverted[token_to_tag].get)
             parsing_list = "(" + tag + " " + word + ")"
 
         # converting the parsing stored as a string into a tree

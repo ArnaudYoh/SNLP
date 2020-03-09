@@ -16,6 +16,11 @@ class CYK:
 
         self.tag_to_id = {tag: i for (i, tag) in enumerate(self.PCFG.list_all_tags)}
 
+        self.lexicon_inverted = {word: {} for word in self.OOV.words_lexicon}
+        for tag in self.PCFG.lexicon:
+            for word in self.PCFG.lexicon[tag]:
+                self.lexicon_inverted[word][tag] = self.PCFG.lexicon[tag][word]
+
         # self.grammar_dicts[X][Y][Z] stores P(rule X->YZ)
         self.grammar_dicts = {}
         for (root_tag, rules) in self.PCFG.grammar.items():
@@ -53,7 +58,7 @@ class CYK:
                         id_tag = self.tag_to_id[tag]
                         prob_matrix[position_word, 0, id_tag] = counts
             else:
-                for (tag, proba) in self.PCFG.lexicon[token_to_tag].items():
+                for (tag, proba) in self.lexicon_inverted[token_to_tag].items():
                     if tag in self.tag_to_id:
                         id_tag = self.tag_to_id[tag]
                         prob_matrix[position_word, 0, id_tag] = proba
